@@ -1,4 +1,4 @@
-name: PS4
+name: PS4 Build with Sample
 
 on:
   push:
@@ -27,40 +27,50 @@ jobs:
       run: |
         sudo apt update
         sudo apt install clang-18 lld-18
+        # تثبيت الـ SDK في مجلد مؤقت وإضافته للمسار
         make DESTDIR=${{ runner.tool_cache }}/ps4-payload-sdk clean install
-        echo PS4_PAYLOAD_SDK=${{ runner.tool_cache }}/ps4-payload-sdk >> $GITHUB_ENV
+        echo "PS4_PAYLOAD_SDK=${{ runner.tool_cache }}/ps4-payload-sdk" >> $GITHUB_ENV
 
-    - name: Checkout Payload
+    - name: Checkout Source Code
       uses: actions/checkout@v3
 
-    - name: Build Payload
+    - name: Build Main Payload (gdbsrv)
       run: |
         make -f Makefile.ps4 clean all
 
-    - name: Upload Payload
+    # الخطوة الجديدة لبناء الـ Sample
+    - name: Build Sample Payload
+      working-directory: sample
+      run: |
+        make -f Makefile.ps4 clean all
+
+    - name: Upload All Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: Payload
-        path: gdbsrv-ps4.elf
+        name: PS4-GDB-Project
+        path: |
+          gdbsrv-ps4.elf
+          sample/payload-ps4.elf
         if-no-files-found: error
 
   release:
     needs: build
     permissions:
       contents: write
-
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          name: Payload
+          name: PS4-GDB-Project
           path: .
 
-      - name: Create GitHub Release (pre-release)
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           prerelease: true
-          files: gdbsrv-ps4.elf
+          files: |
+            gdbsrv-ps4.elf
+            payload-ps4.elf
